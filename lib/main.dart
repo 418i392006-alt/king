@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'game_screen.dart';
 
 const kRed = Color(0xFFE11D26);
 
@@ -118,6 +119,7 @@ class LoadingScreen extends StatefulWidget {
 
 class _LoadingScreenState extends State<LoadingScreen> {
   double _progress = 0;
+  static const _totalMb = 4.0;
 
   @override
   void initState() {
@@ -127,16 +129,17 @@ class _LoadingScreenState extends State<LoadingScreen> {
 
   Future<void> _run() async {
     while (_progress < 1) {
-      await Future.delayed(const Duration(milliseconds: 60));
+      // Uneven steps so it feels like a real download, not a fake timer.
+      await Future.delayed(Duration(milliseconds: 80 + (_progress * 120).round()));
       if (!mounted) return;
-      setState(() => _progress = (_progress + 0.04).clamp(0, 1));
+      setState(() => _progress = (_progress + 0.015 + (0.02 * (1 - _progress))).clamp(0, 1));
     }
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 400));
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 600),
-        pageBuilder: (_, __, ___) => const LoginScreen(),
+        pageBuilder: (_, __, ___) => const PermissionsScreen(),
         transitionsBuilder: (_, a, __, child) =>
             FadeTransition(opacity: a, child: child),
       ),
@@ -145,6 +148,7 @@ class _LoadingScreenState extends State<LoadingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final downloaded = (_progress * _totalMb).toStringAsFixed(1);
     return Scaffold(
       backgroundColor: Colors.black,
       body: Center(
@@ -167,10 +171,118 @@ class _LoadingScreenState extends State<LoadingScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              '${(_progress * 100).round()}%',
+              'جاري التحميل $downloaded / ${_totalMb.toStringAsFixed(1)} ميجابايت',
               style: const TextStyle(color: Colors.white54, fontSize: 14),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Permission request screen, shown once after the first download.
+class PermissionsScreen extends StatefulWidget {
+  const PermissionsScreen({super.key});
+
+  @override
+  State<PermissionsScreen> createState() => _PermissionsScreenState();
+}
+
+class _PermissionsScreenState extends State<PermissionsScreen> {
+  final Map<String, bool> _perms = {
+    'التخزين': true,
+    'الموقع': true,
+    'الميكروفون': false,
+  };
+
+  static const _icons = {
+    'التخزين': Icons.sd_storage_outlined,
+    'الموقع': Icons.location_on_outlined,
+    'الميكروفون': Icons.mic_none,
+  };
+
+  void _continue() {
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 600),
+        pageBuilder: (_, __, ___) => const LoginScreen(),
+        transitionsBuilder: (_, a, __, child) =>
+            FadeTransition(opacity: a, child: child),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Center(
+          child: SizedBox(
+            width: 340,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'أذونات التطبيق',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'King محتاج الأذونات دي عشان يشتغل كويس',
+                  style: TextStyle(color: Colors.white54, fontSize: 13),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ..._perms.keys.map((k) => Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF151515),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(_icons[k], color: Colors.white70),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(k, style: const TextStyle(color: Colors.white)),
+                          ),
+                          Switch(
+                            value: _perms[k]!,
+                            activeColor: kRed,
+                            onChanged: (v) => setState(() => _perms[k] = v),
+                          ),
+                        ],
+                      ),
+                    )),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: _continue,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kRed,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'متابعة',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -441,7 +553,58 @@ class HomeScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 18),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const GameScreen(mode: GameMode.battleRoyale),
+                          ),
+                        ),
+                        icon: const Icon(Icons.gps_fixed, color: Colors.white),
+                        label: const Text('باتل رويال',
+                            style: TextStyle(color: Colors.white, fontSize: 16)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kRed,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const GameScreen(mode: GameMode.training),
+                          ),
+                        ),
+                        icon: const Icon(Icons.sports_martial_arts, color: Colors.white70),
+                        label: const Text('تدريب',
+                            style: TextStyle(color: Colors.white70, fontSize: 16)),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.white24),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
